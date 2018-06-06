@@ -1,10 +1,10 @@
-function [Cp,CT] = actuatorcylinder2(sigma,B,R,Vinf,lambda)
+function [Cp,CT] = actuatorcylinder2(B,R,Vinf,lambda,delta,c,Dtheta)
 %% Input parameters
 % Blade
-sigma = sigma;              % Solidity [-]
+sigma = B*c/(2*R);              % Solidity [-]
 B = B;                      % Number of blades [-]
 R = R;                      % Radius [m]
-c = sigma*2*R/B;            % Chord length [m]
+c = c;                      % Chord length [m]
 twist = 0;                  % Twist angle [rad] [keep 0]
 
 % Flow conditions
@@ -24,7 +24,8 @@ relax = 0.1;                % Relaxation paramter [-]           [dont change]
 %% Define control points
 % Discretise control points
 dtheta = 2*pi/N;
-theta = (1:N)*dtheta-1/2*dtheta;
+theta = (1:N)*dtheta-1/2*dtheta+Dtheta
+
 xc = -R*sin(theta);
 yc = R*cos(theta);
 
@@ -89,7 +90,7 @@ while (abs(wx-wxold)>tol) | (abs(wy-wyold)>tol)
     Fn = 0.5*rho*Vrel.^2*c.*Cn;              % Normal, pointing outwards
     Ft = 0.5*rho*Vrel.^2*c.*Ct;              % Tangential, from trailing to leading edge
 
-    Qn = B*(Fn.*cos(theta_p)-Ft.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
+    Qn = cos(delta)*B*(Fn.*cos(theta_p)-Ft.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
     Qt = -B*(Ft.*cos(theta_p)+Fn.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
     
 
