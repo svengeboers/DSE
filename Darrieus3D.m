@@ -24,13 +24,15 @@ H = 60;                             %Total height [m]
 dZ = 10;                            %Section height [m]
 Htower = 5;                         %Tower height [m]
 M = H/dZ;                           %Number of sections
-f = @(x) -(1/60)*(x-30)^2+15;       %Radius function, x = height, the function of the curvature of the blade
-df = @(x) -(2/60)*x+1;        
+f = @(x) -(1/H)*(x-H/2)^2+H/4;       %Radius function, x = height, the function of the curvature of the blade
+df = @(x) -(2/H)*x+1;        
 
 %% Discretisation
 
 Ptot = 0;
 Ttot = 0;
+Cptot = 0;
+CTtot = 0;
 Atot = 0;
 Flst = [];
 CTlst = [];
@@ -45,12 +47,14 @@ for i = 0:1:M
     sigma = B*c/(2*R);          % Solidity
     lambda = omega*R/Vinf;      % Tip speed ratio [-]
     delta = -atan(df(h));       % Angle of curvature [rad]
-    Dtheta = h*gamma;           % Azimuthal offset [rad]
     
     if lambda >= 2.07
         [Cp,CT,theta,Qn,Qz,Qt,~] = actuatorcylinder2(B,R,Vinf,lambda,delta,c);
         Ptot = Ptot + dZ*Cp*0.5*rho^2*Vinf^3*2*R;       
         Ttot = Ttot + dZ*CT*0.5*rho^2*Vinf^3*2*R;
+        Cptot = Cptot + Cp*2*R*dZ;
+        CTtot = CTtot + CT*2*R*dZ;
+        Atot = Atot + 2*R*dZ;
         
         Qx = Qt.*cos(theta)+Qn.*sin(theta);        % transform the loads to x,y,z coordinates
         Qy = Qt.*sin(theta)-Qn.*cos(theta);
@@ -76,19 +80,38 @@ Torquelst = [];
 
 for i = 1:1:N               %Calculate the torque over the rotor for each position
     Torque = 0;
+    bottomangle = i*deg2rad(360/N)-deg2rad(180/N);
     for j = 1:1:k           %Calculate the torque over the whole rotor for one position
-        n = k*N-N+1;
-        B1 = Flst(n,4)*Flst(n,2);
-        B2 = Flst((n+N/B),4*Flst(n,2);
-        B3 = Flst((n+2*N/B),4*Flst(n,2);
-        Torque = Torque+B1+B2+B3;
+        n = j*N-N+1;
+        h = Flst(n,1);
+        angles = [];
+        slst = [];
+        for b = 0:1:B-1
+            angle = wrapTo2Pi(i*deg2rad(360/N)-deg2rad(180/N)+h*gamma+b*beta);
+            angles = [angles;angle];             
+        end
+        for b = 1:1:B
+            s = find(abs(Flst(:,3)-angles(b))<deg2rad(180/N));
+            Torque = Torque - Flst(s(j),4)*Flst(s(j),2)*dZ;
+        end
     end
-    
+    lst = [bottomangle;Torque];                     % Make a list with all the torques at different angles of 
+    Torquelst = [Torquelst;lst'];                   % the first blade at the bottom of the rotor.
 end
 
-%% Print thrust, power
+%% Print thrust, power, Cptot, CTtot
 
-Ttot        %total thrust of the rotor
-Ptot        %total power of the rotor
+Cptot = Cptot/Atot   %total Cp of the rotor
+CTtot = CTtot/Atot   %total Ct of the rotor
+Ttot                 %total thrust of the rotor
+Ptot                 %total power of the rotor
+
+%% Plot Torque
+
+plot(rad2deg(Torquelst(:,1)),Torquelst(:,2))
+xlabel('theta [deg]')
+ylabel('Torque [Nm]') 
+
+%% Plot Cp as function of rotational speed and chord
 
 toc
