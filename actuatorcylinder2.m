@@ -1,4 +1,4 @@
-function [Cp,CT] = actuatorcylinder2(B,R,Vinf,lambda,delta,c,Dtheta)
+function [Cp,CT,theta,Qn,Qz,Qt,N] = actuatorcylinder2(B,R,Vinf,lambda,delta,c)
 %% Input parameters
 % Blade
 sigma = B*c/(2*R);              % Solidity [-]
@@ -15,7 +15,7 @@ theta_p = deg2rad(0);       % Pitch angle [rad]
 omega = lambda*Vinf/R;      % Rotational speed, counter-clockwise(+) [rad/s]
 
 % Additional parameters
-N = 40;                     % Number of cells in cylinder [-]   [ > 36 ]
+N = 42;                     % Number of cells in cylinder [-]   [ > 36 ]
 Ngrid = 16;                 % Number of cells in grid [-]       [dont change]
 f = 1.001;                  % Factor for evaluation points [-]  [dont change]
 tol = 1e-7;                 % Tolerance for while loop [-]      [dont change]
@@ -24,7 +24,7 @@ relax = 0.1;                % Relaxation paramter [-]           [dont change]
 %% Define control points
 % Discretise control points
 dtheta = 2*pi/N;
-theta = (1:N)*dtheta-1/2*dtheta+Dtheta
+theta = (1:N)*dtheta-1/2*dtheta;
 
 xc = -R*sin(theta);
 yc = R*cos(theta);
@@ -91,6 +91,7 @@ while (abs(wx-wxold)>tol) | (abs(wy-wyold)>tol)
     Ft = 0.5*rho*Vrel.^2*c.*Ct;              % Tangential, from trailing to leading edge
 
     Qn = cos(delta)*B*(Fn.*cos(theta_p)-Ft.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
+    Qz = sin(delta)*B*(Fn.*cos(theta_p)-Ft.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
     Qt = -B*(Ft.*cos(theta_p)+Fn.*sin(theta_p))./(2*pi*R*rho*Vinf^2);
     
 
