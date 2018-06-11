@@ -1,0 +1,157 @@
+% Name:      tower_calculations.m
+% Authors:   Maria de Eusebio
+% Purpose:   determine radius and load distribution along any cylinder
+% subjected to external loading.
+
+%%% Inputs
+
+L = 10      ; %Height of the cylinder [m]
+
+forces = [2428200] ;%All forces acting on the cylinder [N]
+location_forces = [10.0] ; %Location in the cylinder (the bottom is L=0) 
+                      % where each force acts [m]
+                      
+moments = [2428200 * 30] ;%All moments in the plane of the wind [N/m]
+location_moments = [10] ; %Location in the cylinder (the bottom is L=0) 
+                      % where each moment acts [m]
+                     
+mass_rotor = 100; %mass of the full rotor [kg]
+increment = 0.5; %Height of the discrete segments of the cylinder's length
+
+
+%Material
+t       = 10*10.^-3    ; %thickness of the sheet in [m]
+E       = 200*10.^9   ; %Young Modulus [Pa]
+sigma   = 350 * 10.^6 ; %Yield stress [Pa]
+density = 8000.00     ; %Density of the material [kg/m^3]
+n = 1.5               ; %safety factor                      
+
+% Inputs to calculate the airspeed with height
+reference_airspeed = 20.0 ; %m/s
+z0                 = 0.5  ; %surface roughness (m)
+h0                 = 10   ; %reference height
+
+% Inputs for vibrational analysis
+k_tower = [3.52, 22.0, 61.7, 121.0];
+
+
+%Constants
+rho = 1.225        ; %density in kg/m3
+mu  = 1.80*10.^-5  ;
+g   = 9.81         ; %gravity constant
+cd  = 1            ; %drag coefficient of a cylinder
+
+
+
+%Points wher the forces/moments act
+points_of_action = sort([location_moments, location_forces, 0, L], 'descend');
+
+%Discretise length of the tower along the action points
+sections = [];
+for i=drange(1:length(points_of_action)-1)
+   sections = [sections, points_of_action(i) : -increment : points_of_action(i+1)]; 
+end;
+sections = sort(unique(sections), 'descend'); 
+
+%Calculate wind speeds for each section
+v_vector = reference_airspeed * (log(sections/z0)/log(h0/z0));
+v_vector(end) = v_vector(end-2);
+v_vector(end-1) = v_vector(end-2);
+
+%Initialise the vectors (drag = 0)
+drag = 0;
+dS = 0;
+dM = 0; 
+
+S(1)  = sum(forces(sections==sections(1))) + dS; 
+M(1)  = sum(moments(sections==sections(1))) + dM;
+
+R_changing(1) = sqrt(M(1)/(pi * 1/n * sigma * t));
+
+volume_changing = 0;
+
+for i=drange(2:length(sections))
+    
+    drag = 0.5 * rho * v_vector(i).^2 * cd * 2 * R_changing(i-1) * increment; 
+    dS = sum(forces(location_forces==sections(i))) + drag;
+    S(i) = S(i-1) + dS;
+    
+    dM = sum(moments(location_moments==sections(i))) + S(i-1)*increment + drag*(increment/2);
+    M(i) = M(i-1) + dM;
+    
+    
+    R_changing(i) = sqrt(M(i)/(pi * (1/n) * sigma * t));
+    
+    
+    dvolume = 2 * pi * R_changing(i) * t * increment;
+    volume_changing = volume_changing + dvolume;
+      
+end;
+
+
+R_constant_old = R_changing(end);
+stop = 0;
+
+while stop ~= 1
+    
+    d = 0.5 * rho * v_vector(1).^2 * cd * 2 * R_constant_old * L;
+    M_constant = d * (L/2) + sum(moments) + sum(forces.*location_forces);
+    
+    
+    R_constant_new = sqrt(M_constant/(pi*sigma*(1/n)*t));
+    
+    
+    if R_constant_new-R_constant_old < 0.05
+        R_constant = R_constant_new;
+        stop = 1;
+        
+    else
+        R_dconstant_old = R_constant_new;
+        
+    end
+    
+end;
+
+
+Dcheck = 0.5 * rho * v_vector(1).^2 * cd * 2 * R_constant * L;
+Mcheck = Dcheck * L/2 + sum(moments) + sum(forces.*location_forces);
+bending = Mcheck * R_constant / (pi * R_constant.^3 * t);
+buckling = (pi * R_constant.^3 * t) * pi * E / L.^2;
+
+if bending <= sigma && buckling <= E*n 
+    fprintf('R = %4.4f m fits the bending and buckling\n',R_constant)
+    
+elseif bending >= sigma
+    fprintf('R = %4.4f m is NOT OK for bending\n',R_constant)
+
+elseif buckling >= E*n 
+    fprintf('R = %4.4f m is NOT OK for buckling\n',R_constant)
+    
+else
+    fprintf('Something went wrong')
+    
+end
+
+volume_constant = 2 * pi * R_constant * t * L;
+percent_volume = 100 - volume_changing/volume_constant*100;
+
+fprintf('With constant radius, the total volume is %.7f cubic meters, and the mass is %.2f kg \n', volume_constant, volume_constant*density )
+fprintf('With changing radius, the total volume is %.7f cubic meters, and the mass is %.2f kg \n', volume_changing, volume_changing*density )
+fprintf('The volume and mass difference is %.3f per cent\n\n\n', percent)
+
+
+
+
+%Analysis of the vibrations. 
+
+w_tower_constant = k_tower/(2 * pi * L.^2) * sqrt(E * pi * R_constant.^3 * t / (volume_constant * density));
+
+fprintf('The natural frequencies of the tower are %f, %f, %f and %f rad/s\n\n\n', w_tower_constant(1), w_tower_constant(2), w_tower_constant(3), w_tower_constant(4))
+
+
+
+
+        
+    
+
+
