@@ -33,10 +33,9 @@ size(QX(1:42:end));
 
 syms s 
 sb = 0; 
-st = 5;
 s1 = 0; %Placeholder values for s1 and s2
 s2 = 0; 
-qx = 0*s+300;
+qx = 0*s+300; %Placeholder values
 qy = 0*s+50;
 qz = 0*s+9.80665;
 
@@ -46,10 +45,12 @@ int(qy);
 int(qz);
 
 %% Defining constants for THE MATRIX
-a = 5; %this is the radius of the helix
+a = 15; %this is the radius of the helix
 H = 45; %Height of the rotor
-b = H*3/pi;
-c = sqrt(a^2+b^2);
+b = H*3/pi; %Constant that defines the helix
+c = sqrt(a^2+b^2); %Constant that defines the helix
+S = sb:0.1:st; %Array which will be used to plot things along the length of the beam later on
+st = c*pi/3; %Length of the curve
 E = 1000;
 A = 1700;
 G = 3000;
@@ -176,9 +177,7 @@ deltax = vtz*thetay-vty*thetaz + X(10);
 deltay = vtx*thetaz-vtz*thetax + X(11);
 deltaz = vty*thetax-vtx*thetay + X(12);
 
-S = sb:0.1:st;
 
-Vx
 Vx = double(subs(Vx,s,S));
 Vy = double(subs(Vy,s,S));
 Vz = double(subs(Vz,s,S));
