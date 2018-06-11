@@ -1,0 +1,138 @@
+'''
+This program calculated the power curve and AEP for a certain wind turbine.
+It is based on the product of the Weibull curve and the power curve of the turbine.
+
+The inputs are the Weibull parameters k, c (calculated from the Matlab program),
+the swept area (or the height and the radius of the rubine),
+the cut-in speed and cut-out (vmax) speeds, the cp of the turbine, and the number of turbines.
+
+'''
+
+
+import numpy as np
+from numpy import append
+import matplotlib.pyplot as plt
+from math import pi,e
+import scipy as sc
+import scipy.interpolate
+import scipy.optimize
+import scipy.integrate as integrate
+from matplotlib import cm
+
+
+k=2.72
+c=7.22
+
+number_turbines = 1
+cp = 0.4
+rho = 1.225
+R = 15.0
+H = 60.0
+vmax = 20.0
+vcutin = 3.0
+
+A = H *R
+
+Vdata = np.arange(0, 25, 0.5)
+Vrated = np.linspace(9, 25, 10)
+
+
+AEPvector=[]
+CFvector=[]
+
+
+def Weibull(V,k,c):
+    Weibull = k/c*(V/c)**(k-1) * e**(-(V/c)**k)
+    return Weibull
+
+def PowerCurve(V, vrated):  
+    
+    Prated = 0.5 * rho * vrated**3 * A * 2 * cp
+    power=[]
+    
+    for v in V:
+       
+        if ((v>=vmax) or (v< vcutin)):
+            
+            p = 0
+            
+            
+        elif ((v>=vcutin) and (v<vrated)): 
+            p = 0.5 *rho * v**3 * cp * H * 2 * R
+            
+        elif ((v>=vrated) and (v<=vmax)):            
+            p = Prated
+            
+        else:        
+            p = 0
+            print('error')
+            
+        power.append(p)
+    
+    return power
+
+def Product(V):
+    product = PowerCurve_function(V)*Weibull(V,k,c)
+    return product
+
+
+for speed in Vrated:
+
+    PowerCurve_function = sc.interpolate.interp1d(Vdata,PowerCurve(Vdata, speed),kind='cubic')
+         
+    Integration = integrate.quad(Product,3.0,30, limit=200) 
+    ExpectedPower = Integration[0]
+    
+    AEP = np.asarray(ExpectedPower*365*24/10**9, dtype=np.float64)*number_turbines
+    AEPvector.append(AEP)
+    
+    CF = np.asarray(AEP/(Prated*24*365/10**9), dtype=np.float64)
+    CFvector.append(AEP)
+
+
+
+
+'''
+plt.plot(Vrated, AEPvector)
+plt.xlabel('Velocity [m/s]')
+plt.ylabel('AEP [GWh]')
+plt.title('AEP as a function of rated speed',fontweight='bold')
+plt.minorticks_on()
+plt.grid(b=True, which='major',linewidth=1)
+plt.grid(b=True, which='minor') 
+plt.show()
+'''
+'''
+plt.plot(Vdata,Weibull(Vdata,k,c))
+plt.xlabel('Velocity [m/s]')
+plt.ylabel('Probability [-]')
+plt.title('Weibull distribution',fontweight='bold')
+plt.minorticks_on()
+plt.grid(b=True, which='major',linewidth=2)
+plt.grid(b=True, which='minor') 
+plt.show()
+'''
+'''
+plt.plot(Vdata,Product(Vdata))
+plt.xlabel('Velocity [m/s]')
+plt.ylabel('Weighted Power [W]')
+plt.title('Product of the Weibull and power curve',fontweight='bold')
+plt.minorticks_on()
+plt.grid(b=True, which='major',linewidth=2)
+plt.grid(b=True, which='minor') 
+plt.show()
+'''
+
+plt.plot(Vdata,PowerCurve(Vdata, 10))
+plt.xlabel('Velocity [m/s]')
+plt.ylabel('Power [W]')
+plt.title('Power curve',fontweight='bold')
+plt.minorticks_on()
+plt.grid(b=True, which='major',linewidth=2)
+plt.grid(b=True, which='minor') 
+plt.show()
+    
+    
+    
+    
+    
