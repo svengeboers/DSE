@@ -37,7 +37,7 @@ s1 = 0; %Placeholder values for s1 and s2
 s2 = 0; 
 qx = 0*s+300; %Placeholder values
 qy = 0*s+50;
-qz = 0*s+9.80665;
+qz = 0*s+9.80665; %still has to be multiplied by mass per area
 
 % Definite integrals for previously mentioned expressions
 int(qx);
@@ -96,10 +96,10 @@ Fyb = 300;
 Fy1 = 0;
 Fy2 = 0;
 Fyt = 600;
-Fzb = 400;
-Fz1 = 0;
-Fz2 = 0;
-Fzt = 700;
+Fzb = qz*st/2;
+Fz1 = 0; %Assumption is made that the gravity load is distributed 
+Fz2 = 0; %equally among the two supports (b and t)
+Fzt = qz*st/2;
 
 syms c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12
 
@@ -194,11 +194,8 @@ deltax = double(subs(deltax,s,S));
 deltay = double(subs(deltay,s,S));
 deltaz = double(subs(deltaz,s,S));
 
-
-%plot(S,Vx)
-%plot(S,Mx)
-%plot(S,thetax)
-%plot(S,deltax)
+% All values can now be plotted against S
+% For example plot(S,Vx)
 
 
 
