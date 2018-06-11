@@ -6,6 +6,9 @@
 % and displacements can be calculated subsequentially. The input of the 
 % matrix will thus be the distributed loads of gravity, lift and drag
 % in x, y and z direction.
+% Assumptions: 
+% - gravity equally distributed over two supports
+% - Neglect shear deformation
 
 load('/home/sgeboers/Dropbox/DSE/DSE/QX.mat')
 load('/home/sgeboers/Dropbox/DSE/DSE/QY.mat')
@@ -52,7 +55,7 @@ c = sqrt(a^2+b^2); %Constant that defines the helix
 S = sb:0.1:st; %Array which will be used to plot things along the length of the beam later on
 st = c*pi/3; %Length of the curve
 E = 1000;
-A = 1700;
+A = 1700; %Not necessarily needed, only for shear deformation which we ignore
 G = 3000;
 It = 2000;
 In = 1500;
@@ -84,8 +87,6 @@ yzz = b^2/(c^2*G*It)+a^2/(c^2*E*Ib);
 yxy = -a^2*sin(2*s/c)/(2*c^2*G*It)+sin(2*s/c)^2/(2*E*In)-b^2*sin(2*s/c)^2/(c^2*E*Ib);
 yxz = -a*b*sin(s/c)/(c^2*G*It)+a*b*sin(s/c)/(c^2*E*Ib);
 yyz = a*b*cos(s/c)/(c^2*G*It)-a*b*cos(s/c)/(c^2*E*Ib);
-
-% Load step function
 
 % Reaction forces
 Fxb = 200;
