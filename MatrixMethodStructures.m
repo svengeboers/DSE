@@ -28,24 +28,28 @@ pp = spline(Sspline,QX(1:42:end),1:1:5);
 size(QX(1:42:end));
 
 % What follows are placeholder expressions for the distributed forces
-% in x, y and z direction
+% in x, y and z direction. For the aerodynamic forces, for now a constant
+% distribution is used instead of a variable distributed load
 
-syms s sb s1 s2 st
-qx = 3*s^2+2;
-qy = 3*s^2+2;
-qz = 3*s^2+2;
+syms s 
+sb = 0; 
+st = 5;
+s1 = 0; %Placeholder values for s1 and s2
+s2 = 0; 
+qx = 0*s+300;
+qy = 0*s+50;
+qz = 0*s+9.80665;
 
 % Definite integrals for previously mentioned expressions
 int(qx);
 int(qy);
 int(qz);
 
-S = 0:0.1:50;
-
-%% Defining constants for in THE MATRIX
-a = 5;
-b = 3;
-c = 3.5;
+%% Defining constants for THE MATRIX
+a = 5; %this is the radius of the helix
+H = 45; %Height of the rotor
+b = H*3/pi;
+c = sqrt(a^2+b^2);
 E = 1000;
 A = 1700;
 G = 3000;
@@ -81,12 +85,26 @@ yxz = -a*b*sin(s/c)/(c^2*G*It)+a*b*sin(s/c)/(c^2*E*Ib);
 yyz = a*b*cos(s/c)/(c^2*G*It)-a*b*cos(s/c)/(c^2*E*Ib);
 
 % Load step function
-syms Fxb Fx1 Fx2 Fxt Fyb Fy1 Fy2 Fyt Fzb Fz1 Fz2 Fzt
+
+% Reaction forces
+Fxb = 200;
+Fx1 = 0;
+Fx2 = 0;
+Fxt = 500;
+Fyb = 300;
+Fy1 = 0;
+Fy2 = 0;
+Fyt = 600;
+Fzb = 400;
+Fz1 = 0;
+Fz2 = 0;
+Fzt = 700;
+
 syms c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12
 
-Vx = Fxb + Fx1*heaviside(s-s1) + Fx2*heaviside(s-s2) - qx*s + c1;
-Vy = Fyb + Fy1*heaviside(s-s1) + Fy2*heaviside(s-s2) - qy*s + c2;
-Vz = Fzb + Fz1*heaviside(s-s1) + Fz2*heaviside(s-s2) - qz*s + c3;
+Vx = Fxb + 0*Fx1*heaviside(s-s1) + 0*Fx2*heaviside(s-s2) + 0*Fxt*heaviside(s-st) - qx*s + c1;
+Vy = Fyb + 0*Fy1*heaviside(s-s1) + 0*Fy2*heaviside(s-s2) + 0*Fyt*heaviside(s-st) - qy*s + c2;
+Vz = Fzb + 0*Fz1*heaviside(s-s1) + 0*Fz2*heaviside(s-s2) + 0*Fzt*heaviside(s-st) - qz*s + c3;
 
 % Moment equations
 Mx = int(vtz*Vy-vty*Vz) + c4;
@@ -94,14 +112,112 @@ My = int(vtx*Vz-vtz*Vx) + c5;
 Mz = int(vty*Vx-vtx*Vy) + c6;
 
 % Angular displacements
-thetax = int(yxx*Mx+yyx*My+yzx*Mz) + c7;
-thetay = int(yxy*Mx+yyy*My+yzy*Mz) + c8;
+thetax = int(yxx*Mx+yxy*My+yxz*Mz) + c7;
+thetay = int(yxy*Mx+yyy*My+yyz*Mz) + c8;
 thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + c9;
 
 % Displacements
 deltax = vtz*thetay-vty*thetaz + c10;
 deltay = vtx*thetaz-vtz*thetax + c11;
 deltaz = vty*thetax-vtx*thetay + c12;
+
+% Calculation of constant c1, c2 and c3
+% Shear force at the end should equal the reaction force
+
+eqn1 = subs(Vx,s,st)==-Fxt;
+eqn2 = subs(Vy,s,st)==-Fyt;
+eqn3 = subs(Vz,s,st)==-Fzt;
+
+% Calculation of constant c4, c5 and c6
+% Moments yet to be obtained from Louis K
+
+eqn4 = subs(Mx,s,st)==0;
+eqn5 = subs(My,s,st)==0;
+eqn6 = subs(Mz,s,st)==0;
+
+% Calculation of constant c7, c8 and c9
+% angular displacements at the end should be 0
+
+eqn7 = subs(thetax,s,st)==0;
+eqn8 = subs(thetay,s,st)==0;
+eqn9 = subs(thetaz,s,st)==0;
+
+% Calculation of constant c10, c11 and c12
+% Displacement at the end should be 0 (clamped)
+eqn10 = subs(deltax,s,st)==0;
+eqn11 = subs(deltay,s,st)==0;
+eqn12 = subs(deltaz,s,st)==0;
+
+
+[A,B] = equationsToMatrix([eqn1 eqn2 eqn3 eqn4 eqn5 eqn6 eqn7 eqn8 eqn9 eqn10 eqn11 eqn12],[c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12]);
+
+X = linsolve(A,B);
+
+% Now that the solution for the constants is known, they can be used as an
+% input to rewrite the equations. What will follow is just a substitution
+% of the constants into the equations.
+
+Vx = Fxb + 0*Fx1*heaviside(s-s1) + 0*Fx2*heaviside(s-s2) + 0*Fxt*heaviside(s-st) - qx*s + X(1);
+Vy = Fyb + 0*Fy1*heaviside(s-s1) + 0*Fy2*heaviside(s-s2) + 0*Fyt*heaviside(s-st) - qy*s + X(2);
+Vz = Fzb + 0*Fz1*heaviside(s-s1) + 0*Fz2*heaviside(s-s2) + 0*Fzt*heaviside(s-st) - qz*s + X(3);
+
+% Moment equations
+Mx = int(vtz*Vy-vty*Vz) + X(4);
+My = int(vtx*Vz-vtz*Vx) + X(5);
+Mz = int(vty*Vx-vtx*Vy) + X(6);
+
+% Angular displacements
+thetax = int(yxx*Mx+yxy*My+yxz*Mz) + X(7);
+thetay = int(yxy*Mx+yyy*My+yyz*Mz) + X(8);
+thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + X(9);
+
+% Displacements
+deltax = vtz*thetay-vty*thetaz + X(10);
+deltay = vtx*thetaz-vtz*thetax + X(11);
+deltaz = vty*thetax-vtx*thetay + X(12);
+
+S = sb:0.1:st;
+
+Vx
+Vx = double(subs(Vx,s,S));
+Vy = double(subs(Vy,s,S));
+Vz = double(subs(Vz,s,S));
+
+Mx = double(subs(Mx,s,S));
+My = double(subs(My,s,S));
+Mz = double(subs(Mz,s,S));
+
+thetax = double(subs(thetax,s,S));
+thetay = double(subs(thetay,s,S));
+thetaz = double(subs(thetaz,s,S));
+
+deltax = double(subs(deltax,s,S));
+deltay = double(subs(deltay,s,S));
+deltaz = double(subs(deltaz,s,S));
+
+
+%plot(S,Vx)
+%plot(S,Mx)
+%plot(S,thetax)
+%plot(S,deltax)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
