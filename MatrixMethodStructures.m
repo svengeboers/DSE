@@ -159,14 +159,14 @@ My = int(vtx*Vz-vtz*Vx) + c5;
 Mz = int(vty*Vx-vtx*Vy) + c6;
 
 % Angular displacements
-%thetax = int(yxx*Mx+yxy*My+yxz*Mz) + c7;
-%thetay = int(yxy*Mx+yyy*My+yyz*Mz) + c8;
-%thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + c9;
+thetax = int(yxx*Mx+yxy*My+yxz*Mz) + c7;
+thetay = int(yxy*Mx+yyy*My+yyz*Mz) + c8;
+thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + c9;
 
 % Displacements
-deltax = int(vtz*thetay-vty*thetaz) + c7*s + c10;
-deltay = int(vtx*thetaz-vtz*thetax) + c8*s + c11;
-deltaz = int(vty*thetax-vtx*thetay) + c9*s + c12;
+deltax = int(vtz*thetay-vty*thetaz) + c10;
+deltay = int(vtx*thetaz-vtz*thetax) + c11;
+deltaz = int(vty*thetax-vtx*thetay) + c12;
 
 % Calculation of constant c1, c2 and c3
 % Shear force at the end should equal the reaction force
@@ -184,9 +184,9 @@ eqn6 = subs(Mz,s,st)==0;
 % Calculation of constant c7, c8 and c9
 % angular displacements at the end should be 0
 
-eqn7 = subs(deltax,s,sb)==0;
-eqn8 = subs(deltay,s,sb)==0;
-eqn9 = subs(deltaz,s,sb)==0;
+eqn7 = subs(thetax,s,sb)==0;
+eqn8 = subs(thetay,s,sb)==0;
+eqn9 = subs(thetaz,s,sb)==0;
 
 % Calculation of constant c10, c11 and c12
 % Displacement at the end should be 0 (hinged)
@@ -213,14 +213,14 @@ My = int(vtx*Vz-vtz*Vx) + X(5);
 Mz = int(vty*Vx-vtx*Vy) + X(6);
 
 % Angular displacements
-%thetax = int(yxx*Mx+yxy*My+yxz*Mz) + X(7);
-%thetay = int(yxy*Mx+yyy*My+yyz*Mz) + X(8);
-%thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + X(9);
+thetax = int(yxx*Mx+yxy*My+yxz*Mz) + X(7);
+thetay = int(yxy*Mx+yyy*My+yyz*Mz) + X(8);
+thetaz = int(yxz*Mx+yyz*My+yzz*Mz) + X(9);
 
 % Displacements
-deltax = int(vtz*thetay-vty*thetaz) + X(7)*s + X(10);
-deltay = int(vtx*thetaz-vtz*thetax) + X(8)*s + X(11);
-deltaz = int(vty*thetax-vtx*thetay) + X(9)*s + X(12);
+deltax = int(vtz*thetay-vty*thetaz) + X(10);
+deltay = int(vtx*thetaz-vtz*thetax) + X(11);
+deltaz = int(vty*thetax-vtx*thetay) + X(12);
 
 Vx = double(subs(Vx,s,S));
 Vy = double(subs(Vy,s,S));
