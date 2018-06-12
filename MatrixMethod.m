@@ -1,4 +1,4 @@
-function [R] = MatrixMethod(L,theta,qy,qx,Ixx0,Iyy0,E,bcs)
+function [R,xnodes] = MatrixMethod(L,theta,qy,qx,Ixx0,Iyy0,E,bcs)
 
 %Author: Louis Kokee
 %This function calculates the beam internal bending moment at each node.
@@ -26,7 +26,7 @@ N = 100;              % Number of nodes, number will increase a bit during discr
 Iz = Ixx0;              % m^4
 Iy = Iyy0;             % m^4
 
-E = 1e5;            % Pa, Young's Modulus
+% E = 1e5;            % Pa, Young's Modulus
 
 %%%%%%%%%%%%%%%%% BOUNDARY CONDITIONS & FORCES %%%%%%%%%%%%%%%%%%%%%%
 % For BC arrays:
@@ -42,24 +42,24 @@ fext = [[L,1,Py];
         %[0.2,2,300]];
 
 % Setting clamped BC at x = 0
-bcs = [[0.0, 1, 0];
-       [0.0, 2, 0];
-       [0.0, 3, 0];
-       [0.0, 4, 0];
-       [L, 1, 0];
-       [L, 2, 0];
-       [L, 3, 0];
-       [L, 4, 0]];
+% bcs = [[0.0, 1, 0];
+%        [0.0, 2, 0];
+%        [0.0, 3, 0];
+%        [0.0, 4, 0];
+%        [L, 1, 0];
+%        [L, 2, 0];
+%        [L, 3, 0];
+%        [L, 4, 0]];
 
 %%%%%%%%%%%%%%%%% PRE PROCESSING %%%%%%%%%%%%%%%%%%%%%%
 % Put all critical x-locations in a sorted array with no duplicates
 bc_loc = [bcs(:,1);fext(:,1)]; bc_loc = sort(unique(bc_loc(:,1)));
  
 % Call discretization function
-fprintf('\nDiscretizing...\n')
+% fprintf('\nDiscretizing...\n')
 [xnodes, N] = discretize(L, bc_loc, N);
 
-fprintf('New number of nodes:%i\n',N)
+% fprintf('New number of nodes:%i\n',N)
 
 % Generate dictionary where key = x-location, value = corresponding node index
 for i=1:length(bc_loc); idx(i)=find(xnodes==bc_loc(i)); end
@@ -71,13 +71,13 @@ dofs_fixed = [];                     % array containing fixed DoFs
 dofs_free = 1:dof*N;                 % array containing free DoFs
 
 % Initialize matrices, 4 DoFs per node
-fprintf('\nInitializing matrices...\n')
+% fprintf('\nInitializing matrices...\n')
 K = zeros(N*dof,N*dof); 
 fvect = zeros(N*dof,1);
 dvect = zeros(N*dof,1);
 
 %% loads and boundary conditions
-fprintf('\nApplying boundary conditions and external loads...\n')
+% fprintf('\nApplying boundary conditions and external loads...\n')
 
 % Applying discrete external loads to vector fvect
 for ii = 1:length(fext(:,1))   
@@ -96,7 +96,7 @@ end
 dofs_free(dofs_fixed) = [];
 
 
-fprintf('\nLoading global stiffness matrix and force vector...\n')   
+% fprintf('\nLoading global stiffness matrix and force vector...\n')   
 for iel =  1:N-1
 
 	Le = xnodes(iel+1) - xnodes(iel);
@@ -112,14 +112,14 @@ for iel =  1:N-1
 end
  
 %% SOLVING 
-fprintf('\nSolving system...\n')
+% fprintf('\nSolving system...\n')
 K1 = K(dofs_free,dofs_free);
 K12 = K(dofs_free,dofs_fixed);
 
-fprintf('\nSolving for deflections...\n')
+% fprintf('\nSolving for deflections...\n')
 dvect(dofs_free) = K1 \ (fvect(dofs_free) - K12*dvect(dofs_fixed));
 
-fprintf('\nSolving for reaction forces...\n')
+% fprintf('\nSolving for reaction forces...\n')
 R = bcs;            %array containing reaction forces, same structure as bcs
 R(:,3) = (K(dofs_fixed,:)*dvect - fvect(dofs_fixed));
 

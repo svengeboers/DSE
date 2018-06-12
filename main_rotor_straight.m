@@ -10,55 +10,55 @@ N = 100;                                %Number of lengthwise elements
 %rotor geometry
 h = 60;                                 %rotor height in m
 D = 30;                                 %rotor diameter in m
-phase = 0;                              %Phase shift angle in degrees
 
 
 %airfoil properties
-airfoil.filename = 'NACAM23.txt';      	%Airfoil file
-airfoil.t = 3*10^-3;                 	%Thickness in m
-airfoil.C = 1.3;                      	%Chord length in m
-
+airfoil.filename = 'NACA2321.txt';     %Airfoil file
+airfoil.t = 4*10^-3;                 	%Thickness in m
+airfoil.C = 1.1;                      	%Chord length in m
 theta_p = 0;                            %pitch angle 
 
-%Airodynamic properties
-lambda = 3;                           	%tip speed ratio
-Vw = 12;                             	%Wind speed
-qy = 1e3;
-qx = 1e3;
+airfoil.spar1 = true;                       	%spar 1 option
+airfoil.s1t = 4*10^-3;                       	%spar thickness in m
+airfoil.s1c = 0.2;                            	%cordwise position 
 
-%material properties
-E = 1e5;                                %youngsmodulus
-rho_mat = 2702;                        	%material density in kg/m3
+airfoil.spar2 = true;                           %spar 2 option
+airfoil.s2t = 4*10^-3;                        	%spar thickness
+airfoil.s2c = 0.5;                          	%cordwise position 
+
+%Airodynamic properties
+lambda = 3.8;                           %tip speed ratio
+Vw = 13;                             	%Wind speed
+
+Qn = 2399;                            	%N/m, the maximum aerodynamic forces on the blade
+Qt = -454;                           	%N/m
+
+qy = -Qn;
+qx = Qt;
+
+%material properties: alumninium 2024
+E = 73.1e9;                             %Pa, young's modulus 
+rho_mat = 2780;                         %material density in kg/m3
+yieldstrength = 324;                    %MPa
+
 
 %general properties
 g = 9.81;                              	%gravitational acceleration
 
 
 
-
-
 %% Airfoil moments of area, include in function
-[Ixx, Iyy, Ixy, area] = airfoilInertia(airfoil,theta_p);
-[Ixx0, Iyy0, ~, ~] = airfoilInertia(airfoil,0);
-%% CHECK IF IXY > 0 
+[Ixx0, Iyy0, ~, area, x_stress, y_stress] = airfoilInertia(airfoil,0,1);
+[Ixx, Iyy, Ixy, ~, ~, ~] = airfoilInertia(airfoil,theta_p,0);
 
 
 %% Centrifugal force
-Mtot = h*area*rho_mat;                  %total weight
+Mtot = h*area*rho_mat;                  %total mass
 Wtot = Mtot*g;                          %total weight
 
-omega  = Vw*lambda/(0.5*D);                               %Calculates rotational speed in rad/s
-Fc     = Mtot*omega^2*(0.5*D);
-
-% COORDINATE SYSTEM??????????????????
-
-% for i = 1:length(r)
-%     Fc(i) = M(i)*r(i)*omega^2;                            %Calculates magnitude centrifugal force in N
-%     xFc(i) = (r(i)+Fc(i)/(10000./N))*cos(theta(i));       %Make array of position points of the centrifugal force
-%     zFc(i) = (r(i)+Fc(i)/(10000./N))*sin(theta(i));
-% end
-
-
+omega  = Vw*lambda/(0.5*D);            	%rotational speed rad/s
+Fc     = Mtot*omega^2*(0.5*D)/h;        %N/m
+qy     = qy+Fc;
 
 %% call matrix method
 %The first column indicates the distance from the start of the rotor
@@ -80,62 +80,95 @@ bcs = [[0.0, 1, 0];
        [h, 3, 0];
        [h, 4, 0]];
 
-[R] = MatrixMethod(h,theta_p,qy,qx,Ixx0,Iyy0,E,bcs)
+[R,znodes] = MatrixMethod(h,theta_p,qy,qx,Ixx0,Iyy0,E,bcs);
+
+%% compute internal bending moment
+Mx = zeros(1,length(znodes));
+My = zeros(1,length(znodes));
+
+i = 0;
+for z = znodes
+    i = i+1;
+    Mx(i) = -qy*0.5*z^2;
+    My(i) = -qx*0.5*z^2;
+    
+    for ii = 1:length(R(:,1));
+        if z >= R(ii,1)
+            %check DoF
+            if R(ii,2) == 1
+                Mx(i)=Mx(i) - R(ii,3)*(z - R(ii,1));
+            elseif R(ii,2) == 2
+                Mx(i)=Mx(i) + R(ii,3);
+            elseif R(ii,2) == 3
+                My(i)=My(i) - R(ii,3)*(z - R(ii,1));
+            else
+                My(i)=My(i) - R(ii,3);
+            end
+        end
+            
+    end
+    
+    %compute the normal stress in points 1-4
+ 	sigma1(i) = ((My(i)-Mx(i)*(Ixy/Ixx))./(Iyy - (Ixy/Ixx)*Ixy))*x_stress(1) +...
+        ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(1);
+    sigma2(i) = ((My(i)-Mx(i)*(Ixy/Ixx))./(Iyy - (Ixy/Ixx)*Ixy))*x_stress(2) +...
+        ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(2);
+    sigma3(i) = ((My(i)-Mx(i)*(Ixy/Ixx))./(Iyy - (Ixy/Ixx)*Ixy))*x_stress(3) +...
+        ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(2);
+    sigma4(i) = ((My(i)-Mx(i)*(Ixy/Ixx))./(Iyy - (Ixy/Ixx)*Ixy))*x_stress(4) +...
+        ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(2);
+        
+end
+
+%Add the normal stress to points 1-4
+sigma1(find(znodes>R(1,1) & znodes<R(5,1))) = sigma1(find(znodes>R(1,1) & znodes<R(5,1))) - ...
+    Wtot*0.5/area;
+sigma2(find(znodes>R(1,1) & znodes<R(5,1))) = sigma2(find(znodes>R(1,1) & znodes<R(5,1))) - ...
+    Wtot*0.5/area;
+sigma3(find(znodes>R(1,1) & znodes<R(5,1))) = sigma3(find(znodes>R(1,1) & znodes<R(5,1))) - ...
+    Wtot*0.5/area;
+sigma4(find(znodes>R(1,1) & znodes<R(5,1))) = sigma4(find(znodes>R(1,1) & znodes<R(5,1))) - ...
+    Wtot*0.5/area;
+
+[~,idxm1] = max(abs(sigma1));[~,idxm2] = max(abs(sigma2));
+[~,idxm3] = max(abs(sigma3));[~,idxm4] = max(abs(sigma4));
+sigmam1 = sigma1(idxm1);sigmam2 = sigma2(idxm2);
+sigmam3 = sigma3(idxm3);sigmam4 = sigma4(idxm4);
+
+margin = ((yieldstrength*10^6/max(abs([sigmam1,sigmam2,sigmam3,sigmam4]))) - 1)*100;
 
 
-%% Reaction force calculations
-% Fy = 0.5*sum(W);                                                            %reaction force in axis direction
-% Frup = 0;
-% for i = 1:length(r)                                                         %
-%     Frup = Frup + (Fc(i)*y(i)+W(i)*r(i))/h;
-% end
-% Frupx = Frup*cos(mean(theta));
-% Frupz = Frup*sin(mean(theta));
-% Frlow = sum(Fc)-Frup;
-% Frlowx = Frlow*cos(mean(theta));
-% Frlowz = Frlow*sin(mean(theta));
-% 
-% plot3([x(length(y)),x(length(y))-Frupx/(10000/N)],[z(length(y)),z(length(y))-Frupz/(10000/N)],[y(length(y)),y(length(y))],'black:')
-% plot3([x(1),x(1)-Frlowx/(10000/N)],[z(1),z(1)-Frlowz/(10000/N)],[y(1),y(1)],'black:')
-% 
-% %____Internal Forces_______________________________________________________
-% 
-% j = -Fy;
-% jx = -Frlowx;
-% jz = -Frlowz; 
-% for i = 1:length(y)
-%     j = j + W(i);
-%     jx = jx + Fc(i)*cos(theta(i));
-%     jz = jz + Fc(i)*sin(theta(i));
-%     intfn(i) = j;
-%     intfvx(i) = jx;
-%     intfvz(i) = jz;
-% end
-% 
-% %____Stresses______________________________________________________________
-% tauxyV = intfvx/Aair;
-% tauzyV = intfvz/Aair;
-% sigmaN = intfn/Aair;
+%% Print the maximum stress
+fprintf('Maximum stresses in the structure: \n')
+fprintf('Maximum stress in cross-sectional point 1: %f MPa \n',sigmam1*10^-6)
+fprintf('\t at z = %f m \n',znodes(idxm1))
+fprintf('Maximum stress in cross-sectional point 2: %f MPa \n',sigmam2*10^-6)
+fprintf('\t at z = %f m \n',znodes(idxm2))
+fprintf('Maximum stress in cross-sectional point 3: %f MPa \n',sigmam3*10^-6)
+fprintf('\t at z = %f m \n',znodes(idxm3))
+fprintf('Maximum stress in cross-sectional point 4: %f MPa \n',sigmam4*10^-6)
+fprintf('\t at z = %f m \n \n',znodes(idxm4))
+fprintf('Yield Strength: %f MPa \n \n',yieldstrength)
+fprintf('Margin: %f percent \n',margin)
 
 
-%%  Plot forces on beam
-% %____Plot weight___________________________________________________________
-% hold on
-% plot3(x, z, yW,'r--')                        	%plots the line of the weights
-% for i = 1:length(y)
-%    plot3([x(i),x(i)],[z(i),z(i)],[y(i),yW(i)],'r')
-% end
+%% Plot internal bending moment
+figure(2)
+subplot(3,1,1)
+plot(znodes,Mx)
+ylabel('M_y [Nm]')
+grid on
+subplot(3,1,3)
+plot(znodes,[sigma1;sigma2;sigma3;sigma4]*10^-6)
+legend('location 1','location 2','location 3', 'location 4')
+ylabel('\sigma [MPa]')
+xlabel('z [m]')
+grid on
+subplot(3,1,2)
+plot(znodes,My)
+ylabel('M_x [Nm]')
+grid on
 
-%____Plot centrifugal force________________________________________________
-% plot3(xFc, zFc, y, 'y--')
-% for i = 1:length(y)
-%    plot3([x(i),xFc(i)],[z(i),zFc(i)],[y(i),y(i)],'y')
-% end
 
-% fig = plt.figure(4)
-% ax = fig.gca(projection='3d')
-% ax.scatter(tauxyV, tauzyV, sigmaN)
-% #ax.legend()
-% #plt.grid(True)
-% #plt.title("Stress envalope")
-% plt.show()
+
+

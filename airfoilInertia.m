@@ -1,4 +1,4 @@
-function [Ixx, Iyy, Ixy, area] = airfoilInertia(airfoil,theta_p)
+function [Ixx, Iyy, Ixy, area, x_stress, y_stress] = airfoilInertia(airfoil,theta_p,plotting)
 %INPUTS:
 % theta_p               - Airfoil pitch angle [deg]
 % elem.xT                - x positions of top airfoil elements                                                     
@@ -13,6 +13,14 @@ function [Ixx, Iyy, Ixy, area] = airfoilInertia(airfoil,theta_p)
     t = airfoil.t;
     C = airfoil.C;
     
+    spar1 = airfoil.spar1;                     	%second spar
+    s1t = airfoil.s1t;                       	%spar thickness in m
+    s1c = airfoil.s1c;                         	%cordwise position 
+    spar2 = airfoil.spar2;                      %first spar
+    s2t = airfoil.s2t;                        	%spar thickness
+    s2c = airfoil.s2c;
+    
+    
     %Opens aifoil profile
     delimiterIn = ' ';
     headerlinesIn = 2;
@@ -24,23 +32,99 @@ function [Ixx, Iyy, Ixy, area] = airfoilInertia(airfoil,theta_p)
     x2 = airfoil.data(18:34,1)*C;                   %x position points on bottom
     y2 = airfoil.data(18:34,2)*C;                   %y position points on bottom
     clear airfoil
+    
 
+    
+    %% calculate points to compute stresses in 
+    [~,idx] = max(y1);  x_stress(1)=x1(idx); y_stress(1)=y1(idx);%airfoil top
+    [~,idx] = max(x1);  x_stress(2)=x1(idx); y_stress(2)=y1(idx);%airfoil TE
+    [~,idx] = min(y2);  x_stress(3)=x2(idx); y_stress(3)=y2(idx);%airfoul bottom
+    [~,idx] = min(x1);  x_stress(4)=x1(idx); y_stress(4)=y1(idx);%airfoul LE
+    
+%   plot airfoil
+    if plotting
+        figure
+        plot(x_stress(1),y_stress(1),'bo')
+        hold on
+        plot(x_stress(2),y_stress(2),'ko')
+        plot(x_stress(3),y_stress(3),'ro')
+        plot(x_stress(4),y_stress(4),'go')
+        legend('point 1','point 2','point 3','point 4')
+        plot(x1,y1,'r')
+        plot(x2,y2,'b')
+
+    end
+    
+    %%
     for i = 1:length(x1)-1
         LT(i) = sqrt((x1(i+1)-x1(i))^2+(y1(i+1)-y1(i))^2);        	%calculate length of elements on top
         xT(i) = x1(i) + (x1(i+1)-x1(i))/2;                        	%calculate x coordinate middle of elements on top
         yT(i) = y1(i) + (y1(i+1)-y1(i))/2;                          %calculate y coordinate middle of elements on top
-        LB(i) = sqrt((x2(i+1)-x2(i))^2+(y2(i+1)-y2(i))^2);           %same for bottom
+        LB(i) = sqrt((x2(i+1)-x2(i))^2+(y2(i+1)-y2(i))^2);          %same for bottom
         xB(i) = x2(i) + (x2(i+1)-x2(i))/2;
         yB(i) = y2(i) + (y2(i+1)-y2(i))/2;    
     end
 
-    TopAreas = t*LT;                     	%Areas elements on top
+    TopAreas = t*LT;                            %Areas elements on top
     BottomAreas = t*LB;                     	%Areas elements on bottom
-    TopAreas = TopAreas; BottomAreas = BottomAreas;
-    area = sum(TopAreas)+sum(BottomAreas);         
+    area = sum(TopAreas)+sum(BottomAreas);    
+    
+    
+    %% spars
+    if spar1 == true
+        s1x = C*s1c;                           	%x location front spar
+        for i = 1:length(x1)
+           if s1x < x2(i)                      	%determine top and bottom of spar
+              
+              s1y(1) = y1(20-i);
+              s1y(2) = y2(i-1);
+              break
+           end
+           if s1c == x1(i)
+               s1y(1) = y1(20-i);
+               s1y(2) = y2(i-1);
+               break
+           end
+        end
+        s1height = s1y(1)-s1y(2);           	%length front spar
+        s1area = s1height*s1t;                	%area front spar
+        s1mid = s1y(2)+0.5*s1height;          	%midpoint
+        if plotting
+            figure(1)
+            hold on
+            plot([s1x,s1x],s1y)                    	%Plot :D
+            ylim([-0.3*C,0.3*C])
+            xlim([0,C])
+        end
+    end
 
-    %____Centroid location_____________________________________________________
+    if spar2 == true                           	%same for rear spar
+        s2x = C*s2c;
+        for i = 1:length(x1)
+           if s2c == x1(i)
+               s2y(1) = y1(20-i);
+               s2y(2) = y2(i);
+               break
+           end
+           if s2x < x2(i)
+              
+              s2y(1) = y1(20-i);
+              s2y(2) = y2(i-1);
+              break
+           end
+        end
+        
+        s2height = s2y(1)-s2y(2);
+        s2area = s2height*s2t;
+        s2mid = s2y(2)+0.5*s2height;
+        if plotting
+            hold on
+            plot([s2x,s2x],s2y)    
+        end
+    end
 
+    
+    %% Centroid location
     xbar = 0;
     ybar = 0;
     for i = 1:length(TopAreas)
@@ -49,11 +133,6 @@ function [Ixx, Iyy, Ixy, area] = airfoilInertia(airfoil,theta_p)
     end
     xbar = xbar/(sum(TopAreas)+sum(BottomAreas));                               %centroid x position
     ybar = ybar/(sum(TopAreas)+sum(BottomAreas));                               %centroid y position
-
-    % figure(1)
-    % plot(x1,y1,x2,y2,[0,C],[ybar,ybar],[xbar,xbar],[-0.3*C,0.3*C])                  %Plot :D
-    % ylim([-0.3*C,0.3*C])
-    % xlim([0,C])
 
     xT = xT - xbar;                                                     %redefine mid positions with respect to centroid
     yT = yT - ybar;                                 
