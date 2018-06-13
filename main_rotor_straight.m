@@ -14,7 +14,7 @@ D = 30;                                 %rotor diameter in m
 
 %airfoil properties
 airfoil.filename = 'NACA2321.txt';     %Airfoil file
-airfoil.t = 4*10^-3;                 	%Thickness in m
+airfoil.t = 6*10^-3;                 	%Thickness in m
 airfoil.C = 1.1;                      	%Chord length in m
 theta_p = 0;                            %pitch angle 
 
@@ -27,7 +27,7 @@ airfoil.s2t = 4*10^-3;                        	%spar thickness
 airfoil.s2c = 0.5;                          	%cordwise position 
 
 %Airodynamic properties
-lambda = 3.8;                           %tip speed ratio
+lambda = 3.4;                           %tip speed ratio
 Vw = 13;                             	%Wind speed
 
 Qn = 2399;                            	%N/m, the maximum aerodynamic forces on the blade
@@ -36,15 +36,16 @@ Qt = -454;                           	%N/m
 qy = -Qn;
 qx = Qt;
 
-%material properties: alumninium 2024
-E = 73.1e9;                             %Pa, young's modulus 
-rho_mat = 2780;                         %material density in kg/m3
-yieldstrength = 324;                    %MPa
+%material properties: APA6
+E = 16.0e9;                             %Pa, young's modulus 
+rho_mat = 2096;                         %material density in kg/m3
+yieldstrength = 1229;                    %MPa
 
 
 %general properties
 g = 9.81;                              	%gravitational acceleration
-
+a = 0.0;                                %strut location 1 
+b = 1-a;                                %strut location 2
 
 
 %% Airfoil moments of area, include in function
@@ -71,14 +72,14 @@ qy     = qy+Fc;
 % means no displacement) in bcs. In matrix R, the third column represents
 % the reaction forces.
 
-bcs = [[0.0, 1, 0];
-       [0.0, 2, 0];
-       [0.0, 3, 0];
-       [0.0, 4, 0];
-       [h, 1, 0];
-       [h, 2, 0];
-       [h, 3, 0];
-       [h, 4, 0]];
+bcs = [[a*h, 1, 0];
+       [a*h, 2, 0];
+       [a*h, 3, 0];
+       [a*h, 4, 0];
+       [b*h, 1, 0];
+       [b*h, 2, 0];
+       [b*h, 3, 0];
+       [b*h, 4, 0]];
 
 [R,znodes] = MatrixMethod(h,theta_p,qy,qx,Ixx0,Iyy0,E,bcs);
 
@@ -89,6 +90,8 @@ My = zeros(1,length(znodes));
 i = 0;
 for z = znodes
     i = i+1;
+    Vx(i) = -qy*z;
+    Vy(i) = -qx*z;
     Mx(i) = -qy*0.5*z^2;
     My(i) = -qx*0.5*z^2;
     
@@ -97,10 +100,12 @@ for z = znodes
             %check DoF
             if R(ii,2) == 1
                 Mx(i)=Mx(i) - R(ii,3)*(z - R(ii,1));
+                Vy(i)=Vy(i) - R(ii,3);
             elseif R(ii,2) == 2
                 Mx(i)=Mx(i) + R(ii,3);
             elseif R(ii,2) == 3
                 My(i)=My(i) - R(ii,3)*(z - R(ii,1));
+                Vx(i)=Vx(i) - R(ii,3);
             else
                 My(i)=My(i) - R(ii,3);
             end
@@ -117,7 +122,11 @@ for z = znodes
         ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(2);
     sigma4(i) = ((My(i)-Mx(i)*(Ixy/Ixx))./(Iyy - (Ixy/Ixx)*Ixy))*x_stress(4) +...
         ((Mx(i) - My(i).*(Ixy/Iyy))/(Ixx - (Ixy/Iyy).*Ixy))*y_stress(2);
-        
+    tau(i) = sqrt(Vx(i)^2+Vy(i)^2)/area;
+    sigma1(i) = sqrt(sigma1(i)^2+3*tau(i)^2);
+    sigma2(i) = sqrt(sigma2(i)^2+3*tau(i)^2);
+    sigma3(i) = sqrt(sigma3(i)^2+3*tau(i)^2);
+    sigma4(i) = sqrt(sigma4(i)^2+3*tau(i)^2);
 end
 
 %Add the normal stress to points 1-4
@@ -168,7 +177,4 @@ subplot(3,1,2)
 plot(znodes,My)
 ylabel('M_x [Nm]')
 grid on
-
-
-
 
