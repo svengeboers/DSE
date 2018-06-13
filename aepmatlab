@@ -1,0 +1,49 @@
+
+%Inputs for Weibull distribution
+
+k=2.72;
+c=7.22;
+
+number_turbines = 1;
+vdata = (0: 0.0001: 30);
+
+Prated = max(powercurve_func(vdata));
+ExpectedEnergy = Prated * 365 * 24;
+
+product_points = product_func (vdata, k, c);
+Product = spline(vdata,product_points, vdata);
+
+
+xdistance = ones(1, length(Product))*0.01;
+Energy = trapz(vdata, Product);
+
+AEP = Energy * 365 * 24 * number_turbines;
+
+fprintf('\nThe actual annual energy production is %f GW.\n', AEP/(10.^9));
+fprintf('The actual annual energy production is %f GW.\n', ExpectedEnergy/(10.^9));
+fprintf('The capacity factor CF is %f.\n\n\n', (AEP/(10.^9))/(ExpectedEnergy/(10.^9)));
+
+
+
+%Integration = integral(PowerCurve_fit ,min(vdata),max(vdata));
+
+
+function Product = product_func(v, k, c)
+    Product = times(weibull_func(v, k, c), powercurve_func(v));
+end
+
+
+function Weibull = weibull_func (V, k, c)
+    Weibull = times(k/c*(V/c).^(k-1), exp((-(V/c).^k))) ;
+    
+end
+
+function PowerCurve = powercurve_func(v);
+PowerPoints = importdata('anouk_power_curve_12.txt');
+SpeedPoints = importdata('anouk_speeds_for_power_curve.txt');
+
+PowerCurve = spline(SpeedPoints,PowerPoints, v);
+PowerCurve(find(v>max(SpeedPoints)))=0;
+end
+
+
