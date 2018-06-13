@@ -3,8 +3,9 @@ tic
 
 %% input variables
 
-chords = 0.5:0.1:2.5;       % Chord length [m]
-omegas = 1:0.1:2;           % Rotational speed, counter-clockwise(+) [rad/s]
+chords = 1.1;%0.5:0.2:2;       % Chord length [m]
+omegas = 0.0:0.1:1.5;           % Rotational speed, counter-clockwise(+) [rad/s]
+lambdas = 0.0:0.3:4.5;
 
 B = 3;                      % Number of blades [-] Make sure N in actuatorcylinder2 can be divided by B
 gamma = deg2rad(10);        % Sweep angle [rad] (change in azamuthal angle of the blade per meter increase in height)
@@ -22,11 +23,17 @@ for c = chords
     i = i + 1;
     j = 0;
     c
-    for omega = omegas
-        j = j + 1;
-        [Cptot,CTtot] = fDarrieus3D(c,omega,B,gamma); 
-        Cp(i,j) = Cptot; 
-        CT(i,j) = CTtot;
+%     for omega = omegas
+%         j = j + 1;
+%         [Cptot,CTtot] = fDarrieus3D(c,omega,B,gamma); 
+%         Cp(i,j) = Cptot; 
+%         CT(i,j) = CTtot;
+%     end
+    for lambda = lambdas
+            j = j + 1;
+            [Cptot,CTtot] = fDarrieus3D3(c,lambda,B,13); 
+            Cp(i,j) = Cptot; 
+            CT(i,j) = CTtot;
     end
 end
 
@@ -40,17 +47,27 @@ fprintf('The max Cp is %.2f with a chord of %.1f and a omega of %.2f. \n', max(m
 fprintf('The max CT is %.2f with a chord of %.1f and a omega of %.2f. \n', max(max(CT)), chords(1,I_rowCT), omegas(I_colCT,1));
 
 %% Plot
-figure('position', [100, 200, 1500, 600])
-subplot(1,2,1)
-contourf(chords',omegas',Cp,0.0:0.01:1.0,'ShowText','on')
-xlabel('chord [m]')
-ylabel('rotational speed [rad/s]')
-title('Cp')
+% figure('position', [100, 200, 1500, 600])
+% subplot(1,2,1)
+% contourf(chords',omegas',Cp,0.0:0.01:1.0,'ShowText','on')
+% xlabel('chord [m]')
+% ylabel('rotational speed [rad/s]')
+% title('Cp')
+% 
+% subplot(1,2,2)
+% contourf(chords',omegas',CT,0.0:0.01:1.5,'ShowText','on')
+% xlabel('chord [m]')
+% ylabel('rotational speed [rad/s]')
+% title('CT')
 
-subplot(1,2,2)
-contourf(chords',omegas',CT,0.0:0.01:1.5,'ShowText','on')
-xlabel('chord [m]')
-ylabel('rotational speed [rad/s]')
-title('CT')
+% plot(omegas,Cp)
+% xlabel('omega')
+% ylabel('Cp')
+% title('Chord 1.1m')
+
+plot(lambdas,Cp)
+xlabel('lambda')
+ylabel('Cp')
+title('Chord 1.1m')
 
 toc
