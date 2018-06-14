@@ -1,26 +1,49 @@
-% Name:      tower_calculations.m
+% Name:      cylinder_analysis.m
 % Authors:   Maria de Eusebio
 % Purpose:   determine radius and load distribution along any cylinder
 % subjected to external loading.
 
 %%% Inputs
 
-L = 10      ; %Height of the cylinder [m]
+L = 10;                 %Height of the cylinder [m]
+angle_cylinder = 0;    %Smallest angle of the cylinder with respect to the ground [deg]
 
-forces = [2428200] ;%All forces acting on the cylinder [N]
-location_forces = [10.0] ; %Location in the cylinder (the bottom is L=0) 
-                      % where each force acts [m]
-                      
-moments = [2428200 * 30] ;%All moments in the plane of the wind [N/m]
-location_moments = [10] ; %Location in the cylinder (the bottom is L=0) 
-                      % where each moment acts [m]
-                     
-mass_rotor = 100; %mass of the full rotor [kg]
-increment = 0.5; %Height of the discrete segments of the cylinder's length
+module_forces = [Fy];
+%Module of the forces acting on the cylinder [N]
+
+angle_forces = [-270]; 
+%0 deg. is parallel and in the direction to the wind.
+%Forces parallel to the direction of the wind, but negative, are at 180 deg
+%Forces going "up" vertically are at 90 deg
+%Forces going "down" vertically are at 270 deg
+
+x_location_forces = [0];
+%The origin is the symmetry axis of the cylinder.
+%Location at the right of the axis is positive; at the left, is negative.
+%Right at the axis of symmetry is 0
+
+y_location_forces = [0];
+%The origin is the end of the cylinder CLOSEST TO THE GROUND.
+
+x_forces = cosd(angle_forces).*module_forces ;
+y_forces = sind(angle_forces).*module_forces ;
+%Descomposition of the forces in x and y directions
+
+moments_from_forces = [-y_location_forces.*x_forces, -x_location_forces.*y_forces];
+%The origin is the end of the cylinder CLOSEST TO THE GROUND.
+
+moments = [Mx] ;
+%All moments in the plane of the wind [N/m]
+
+y_location_moments = [0] ;
+%The origin is the end of the cylinder CLOSEST TO THE GROUND.
+
+%Height [m] of the discrete segments of the cylinder's length
+increment = 0.01;
 
 
 %Material
-t       = 10*10.^-3    ; %thickness of the sheet in [m]
+t       = 10*10.^-3   ; %thickness of the sheet in [m]
 E       = 200*10.^9   ; %Young Modulus [Pa]
 sigma   = 350 * 10.^6 ; %Yield stress [Pa]
 density = 8000.00     ; %Density of the material [kg/m^3]
@@ -39,32 +62,31 @@ k_tower = [3.52, 22.0, 61.7, 121.0];
 rho = 1.225        ; %density in kg/m3
 mu  = 1.80*10.^-5  ;
 g   = 9.81         ; %gravity constant
-cd  = 1            ; %drag coefficient of a cylinder
-
-
+cd  = 0          ; %drag coefficient of a cylinder
 
 %Points wher the forces/moments act
-points_of_action = sort([location_moments, location_forces, 0, L], 'descend');
+points_of_action = sort([y_location_moments, y_location_forces, 0, L], 'descend');
 
 %Discretise length of the tower along the action points
 sections = [];
 for i=drange(1:length(points_of_action)-1)
    sections = [sections, points_of_action(i) : -increment : points_of_action(i+1)]; 
 end;
+
 sections = sort(unique(sections), 'descend'); 
+h_ground = sections * sind(angle_cylinder);
+
 
 %Calculate wind speeds for each section
-v_vector = reference_airspeed * (log(sections/z0)/log(h0/z0));
-v_vector(end) = v_vector(end-2);
-v_vector(end-1) = v_vector(end-2);
+v_vector = reference_airspeed * (log(h_ground/z0)/log(h0/z0));
+for idx = find(v_vector < 0)
+   v_vector(idx) = min(v_vector>0);
+end
 
 %Initialise the vectors (drag = 0)
-drag = 0;
-dS = 0;
-dM = 0; 
 
-S(1)  = sum(forces(sections==sections(1))) + dS; 
-M(1)  = sum(moments(sections==sections(1))) + dM;
+S(1)  = sum(x_forces(find(y_location_forces==sections(1))));  
+M(1)  = sum(moments(find(y_location_moments==sections(1))));
 
 R_changing(1) = sqrt(M(1)/(pi * 1/n * sigma * t));
 
@@ -72,50 +94,57 @@ volume_changing = 0;
 
 for i=drange(2:length(sections))
     
-    drag = 0.5 * rho * v_vector(i).^2 * cd * 2 * R_changing(i-1) * increment; 
-    dS = sum(forces(location_forces==sections(i))) + drag;
-    S(i) = S(i-1) + dS;
+    d = drag_calc (v_vector(i), 2*R_changing(i-1)*increment, rho, cd);
+    dS = sum(x_forces(find(y_location_forces==sections(i)))) + d;
+   
+    S(i) = S(i-1) + dS; 
     
-    dM = sum(moments(location_moments==sections(i))) + S(i-1)*increment + drag*(increment/2);
+    dM = sum(moments(find(y_location_moments==sections(i)))) + S(i-1)*increment + d*(increment/2);
     M(i) = M(i-1) + dM;
-    
-    
-    R_changing(i) = sqrt(M(i)/(pi * (1/n) * sigma * t));
-    
-    
-    dvolume = 2 * pi * R_changing(i) * t * increment;
+        
+    R_changing(i) = Rdisk(abs(M(i)), t, sigma, n);
+        
+    dvolume = adisk(R_changing(i), t) * increment;
     volume_changing = volume_changing + dvolume;
       
 end;
-
 
 R_constant_old = R_changing(end);
 stop = 0;
 
 while stop ~= 1
     
-    d = 0.5 * rho * v_vector(1).^2 * cd * 2 * R_constant_old * L;
-    M_constant = d * (L/2) + sum(moments) + sum(forces.*location_forces);
-    
-    
-    R_constant_new = sqrt(M_constant/(pi*sigma*(1/n)*t));
-    
-    
-    if R_constant_new-R_constant_old < 0.05
+    d = drag_calc (v_vector(1), 2*R_constant_old*increment, rho, cd);
+    M_constant = abs(d * (L/2) + sum(moments) + sum(moments_from_forces));
+       
+    R_constant_new = Rdisk(abs(M(i)), t, sigma, n);
+        
+    if R_constant_new-R_constant_old < 0.5
+        
         R_constant = R_constant_new;
         stop = 1;
         
     else
-        R_dconstant_old = R_constant_new;
+        
+        R_constant_old = R_constant_new;
         
     end
     
 end;
 
+R_buckling = abs(((((sum(y_forces))*L.^2))/(pi.^2*t*E))).^(1/3);
 
-Dcheck = 0.5 * rho * v_vector(1).^2 * cd * 2 * R_constant * L;
-Mcheck = Dcheck * L/2 + sum(moments) + sum(forces.*location_forces);
-bending = Mcheck * R_constant / (pi * R_constant.^3 * t);
+if R_constant<R_buckling
+    fprintf('The constant bending radius of %f does not fit the buckling.\n', R_constant);
+    fprintf('The required radius should be of %f. \n', R_buckling);
+    R_constant = R_buckling;
+          
+end;
+
+Dcheck = drag_calc(v_vector(1), 2*R_constant*L, rho, cd);
+Mcheck = Dcheck * L/2 + sum(moments) + sum(moments_from_forces);
+
+bending = Mcheck * R_constant / Idisk(R_constant, t);
 buckling = (pi * R_constant.^3 * t) * pi * E / L.^2;
 
 if bending <= sigma && buckling <= E*n 
@@ -126,27 +155,131 @@ elseif bending >= sigma
 
 elseif buckling >= E*n 
     fprintf('R = %4.4f m is NOT OK for buckling\n',R_constant)
+    R_constant = (((sum(y_forces)*L.^2))/(pi.^2*t*E)).^(1/3);
+    fprintf('The required radius is R = %4.4f m \n\n',R_constant)
     
 else
-    fprintf('Something went wrong')
+    fprintf('Something went wrong\n')
     
 end
 
-volume_constant = 2 * pi * R_constant * t * L;
-percent_volume = 100 - volume_changing/volume_constant*100;
+volume_constant = (adisk(R_constant, t)*L);
+percent = 100 - volume_changing/volume_constant * 100;
 
 fprintf('With constant radius, the total volume is %.7f cubic meters, and the mass is %.2f kg \n', volume_constant, volume_constant*density )
 fprintf('With changing radius, the total volume is %.7f cubic meters, and the mass is %.2f kg \n', volume_changing, volume_changing*density )
-fprintf('The volume and mass difference is %.3f per cent\n\n\n', percent)
-
-
+fprintf('The volume and mass difference is %.3f per cent\n', percent)
 
 
 %Analysis of the vibrations. 
-
 w_tower_constant = k_tower/(2 * pi * L.^2) * sqrt(E * pi * R_constant.^3 * t / (volume_constant * density));
 
 fprintf('The natural frequencies of the tower are %f, %f, %f and %f rad/s\n\n\n', w_tower_constant(1), w_tower_constant(2), w_tower_constant(3), w_tower_constant(4))
+
+%Now that we have our radius (and thus we know the drag), we can calculate the 
+%reaction forces and their distribution along the cylinder
+sections=sort(sections);
+v_vector = sort(v_vector);
+
+for i=drange(1:length(sections))
+    drag(i) = drag_calc (v_vector(i), 2*R_constant*increment, rho, cd);  
+end
+
+reaction_forces = -[(sum(drag) + sum(x_forces))];
+location_reaction_forces = [0];
+
+reaction_moments = -[(sum(moments) + sum(moments_from_forces) + sum(drag)*(2*L/3))];
+location_reaction_moments = [0];
+
+S_in(1) = reaction_forces(find(location_reaction_forces == sections(1)));
+M_in(1) = reaction_moments(find(location_reaction_moments == sections(1)));
+
+for i=drange(2:length(sections)) 
+    
+    dS_in = drag(i) + sum(x_forces(find(y_location_forces==sections(i)))) + sum(reaction_forces(find(location_reaction_forces==sections(i))));
+    S_in(i) = S_in(i-1) + dS_in;
+    
+    
+    dM_in = S_in(i-1) * increment + drag_calc(v_vector(i), 2*R_constant*increment, rho, cd )*(increment/2) + sum(moments(find(y_location_moments==sections(i)))) + sum(reaction_moments(find(location_reaction_moments==sections(i))));   
+    M_in(i) = M_in(i-1) + dM_in;
+     
+end;
+
+subplot(2,1,1);
+plot (sections, S_in);
+title('Shear diagram of the cylinder')
+xlabel('Length of cylinder [m]') % x-axis label
+ylabel('Shear [N]') % y-axis label
+xlim([0, 12]);
+ax = gca;
+ax.XAxisLocation = 'origin';
+
+subplot(2,1,2);
+plot (sections, M_in);
+title('Moment diagram of the cylinder')
+xlabel('Length of cylinder [m]') % x-axis label
+ylabel('Moment [N*m]') % y-axis label
+%ylim([-250, 250]);
+xlim([0,12]);
+ax = gca;
+ax.XAxisLocation = 'origin';
+
+
+%Now we can calculate the deflections and bendings of the tower. God I'm so
+%bored of this program. I have spent so much time debugging shitty little
+%craps all over it. My mental health is slowly cracking as I find out that
+%THE ONE THING that was wrond after so many painful hours is changing one
+%word in one line of code among the hundreds of lines and thousands of words of
+%this program. I need a cookie...
+
+
+for i=drange(1:length(sections))
+    
+    v_drag_cantilever(i) = -max(drag)*sections(i).^2 / (120 * E * Idisk(R_constant, t) * L) * (10*L.^3-10*L.^2+5*L^2*sections(i)-sections(i).^3);
+    
+    v_shear_cantilever(i) = -sum(x_forces(find(y_location_forces==L))) * sections(i).^2 /(6 * E * Idisk(R_constant, t))*(3*L-sections(i));
+    
+    M_deflection_cantilever = sum(moments(find(y_location_moments==L))) + sum(moments_from_forces(find(y_location_forces==L))); 
+    v_moment_cantilever(i) = (sections(i).^2*M_deflection_cantilever/(2 * E * Idisk(R_constant, t)));
+    
+    v_total_cantilever(i) = v_drag_cantilever(i) + v_shear_cantilever(i) + v_moment_cantilever(i);
+end;
+
+tetha_drag_cantilever = -max(drag) * L.^3 / (24 * E * Idisk(R_constant, t));
+tetha_shear_cantilever = -sum(x_forces(find(y_location_forces==L))) * L.^2 / (8*E*Idisk(R_constant, t));
+tetha_moment_cantilever = M_deflection_cantilever * L / (2 * E * Idisk(R_constant, t));
+
+function drag = drag_calc (v, A, rho, cd)
+    drag = 0.5 * rho * v.^2 * A * cd;
+end
+
+function R_circle = Rcircle (M, sigma, n)
+    R_circle = (4 * M/(pi * (1/n) * sigma)).^(1/3);
+end
+
+function R_disk = Rdisk (M, t, sigma, n)
+    R_disk = sqrt(M/(pi*sigma*(1/n)*t));
+end
+
+function I_circle = Icircle (R)
+    I_circle = (pi/4 * R.^4);
+end
+
+function I_disk = Idisk (R, t)
+    I_disk = (pi * R.^3 * t);
+end
+
+function area_disk = adisk (R, t)
+    area_disk = 2 * pi * R * t;
+    
+end
+
+function area_circle = acircle (R)
+    area_circle = pi*R.^2;
+    
+end
+
+
 
 
 
