@@ -22,20 +22,20 @@ x_location_forces = [0];
 %Location at the right of the axis is positive; at the left, is negative.
 %Right at the axis of symmetry is 0
 
-y_location_forces = [0];
+z_location_forces = [0];
 %The origin is the end of the cylinder CLOSEST TO THE GROUND.
 
 x_forces = cosd(angle_forces).*module_forces ;
-y_forces = sind(angle_forces).*module_forces ;
+z_forces = sind(angle_forces).*module_forces ;
 %Descomposition of the forces in x and y directions
 
-moments_from_forces = [-y_location_forces.*x_forces, -x_location_forces.*y_forces];
+moments_from_forces = [-z_location_forces.*x_forces, -x_location_forces.*z_forces];
 %The origin is the end of the cylinder CLOSEST TO THE GROUND.
 
 moments = [Mx] ;
 %All moments in the plane of the wind [N/m]
 
-y_location_moments = [0] ;
+z_location_moments = [0] ;
 %The origin is the end of the cylinder CLOSEST TO THE GROUND.
 
 %Height [m] of the discrete segments of the cylinder's length
@@ -65,7 +65,7 @@ g   = 9.81         ; %gravity constant
 cd  = 0          ; %drag coefficient of a cylinder
 
 %Points wher the forces/moments act
-points_of_action = sort([y_location_moments, y_location_forces, 0, L], 'descend');
+points_of_action = sort([z_location_moments, z_location_forces, 0, L], 'descend');
 
 %Discretise length of the tower along the action points
 sections = [];
@@ -85,8 +85,8 @@ end
 
 %Initialise the vectors (drag = 0)
 
-S(1)  = sum(x_forces(find(y_location_forces==sections(1))));  
-M(1)  = sum(moments(find(y_location_moments==sections(1))));
+S(1)  = sum(x_forces(find(z_location_forces==sections(1))));  
+M(1)  = sum(moments(find(z_location_moments==sections(1))));
 
 R_changing(1) = sqrt(M(1)/(pi * 1/n * sigma * t));
 
@@ -95,11 +95,11 @@ volume_changing = 0;
 for i=drange(2:length(sections))
     
     d = drag_calc (v_vector(i), 2*R_changing(i-1)*increment, rho, cd);
-    dS = sum(x_forces(find(y_location_forces==sections(i)))) + d;
+    dS = sum(x_forces(find(z_location_forces==sections(i)))) + d;
    
     S(i) = S(i-1) + dS; 
     
-    dM = sum(moments(find(y_location_moments==sections(i)))) + S(i-1)*increment + d*(increment/2);
+    dM = sum(moments(find(z_location_moments==sections(i)))) + S(i-1)*increment + d*(increment/2);
     M(i) = M(i-1) + dM;
         
     R_changing(i) = Rdisk(abs(M(i)), t, sigma, n);
@@ -132,7 +132,7 @@ while stop ~= 1
     
 end;
 
-R_buckling = abs(((((sum(y_forces))*L.^2))/(pi.^2*t*E))).^(1/3);
+R_buckling = abs(((((sum(z_forces))*L.^2))/(pi.^2*t*E))).^(1/3);
 
 if R_constant<R_buckling
     fprintf('The constant bending radius of %f does not fit the buckling.\n', R_constant);
@@ -155,7 +155,7 @@ elseif bending >= sigma
 
 elseif buckling >= E*n 
     fprintf('R = %4.4f m is NOT OK for buckling\n',R_constant)
-    R_constant = (((sum(y_forces)*L.^2))/(pi.^2*t*E)).^(1/3);
+    R_constant = (((sum(z_forces)*L.^2))/(pi.^2*t*E)).^(1/3);
     fprintf('The required radius is R = %4.4f m \n\n',R_constant)
     
 else
@@ -196,14 +196,31 @@ M_in(1) = reaction_moments(find(location_reaction_moments == sections(1)));
 
 for i=drange(2:length(sections)) 
     
-    dS_in = drag(i) + sum(x_forces(find(y_location_forces==sections(i)))) + sum(reaction_forces(find(location_reaction_forces==sections(i))));
+    dS_in = drag(i) + sum(x_forces(find(z_location_forces==sections(i)))) + sum(reaction_forces(find(location_reaction_forces==sections(i))));
     S_in(i) = S_in(i-1) + dS_in;
     
-    
-    dM_in = S_in(i-1) * increment + drag_calc(v_vector(i), 2*R_constant*increment, rho, cd )*(increment/2) + sum(moments(find(y_location_moments==sections(i)))) + sum(reaction_moments(find(location_reaction_moments==sections(i))));   
+    dM_in = S_in(i-1) * increment + drag_calc(v_vector(i), 2*R_constant*increment, rho, cd )*(increment/2) + sum(moments(find(z_location_moments==sections(i)))) + sum(reaction_moments(find(location_reaction_moments==sections(i))));   
     M_in(i) = M_in(i-1) + dM_in;
-     
+    
+    bending_stress(i) = M_in(i)*R_constant/Idisk(R_constant, t);
+    normal_stress(i) = M_in(i)*R_constant/Idisk(R_constant, t);
+    
+    total_normal_stress(i) = bending_stress(i) + normal_stress(i);
+    
+    Q = 4*R_constant/(3*2*90-sind(2*90)) * 0.5 * adisk(R_constant, t);
+    shear_stress(i) = S_in(i) * Q / (Idisk(R_constant, t)*t);
+    
+    VonMisses(i) = sqrt(total_normal_stress(i).^2 + 3*shear_stress(i).^2);
 end;
+
+if max(VonMisses)>sigma/1.5
+    fprintf('you fucked up the Von Misses stresses\n');
+    
+else
+    fprintf('The Von Misses stresses are OK\n');
+    
+end;
+    
 
 subplot(2,1,1);
 plot (sections, S_in);
@@ -237,16 +254,16 @@ for i=drange(1:length(sections))
     
     v_drag_cantilever(i) = -max(drag)*sections(i).^2 / (120 * E * Idisk(R_constant, t) * L) * (10*L.^3-10*L.^2+5*L^2*sections(i)-sections(i).^3);
     
-    v_shear_cantilever(i) = -sum(x_forces(find(y_location_forces==L))) * sections(i).^2 /(6 * E * Idisk(R_constant, t))*(3*L-sections(i));
+    v_shear_cantilever(i) = -sum(x_forces(find(z_location_forces==L))) * sections(i).^2 /(6 * E * Idisk(R_constant, t))*(3*L-sections(i));
     
-    M_deflection_cantilever = sum(moments(find(y_location_moments==L))) + sum(moments_from_forces(find(y_location_forces==L))); 
+    M_deflection_cantilever = sum(moments(find(z_location_moments==L))) + sum(moments_from_forces(find(z_location_forces==L))); 
     v_moment_cantilever(i) = (sections(i).^2*M_deflection_cantilever/(2 * E * Idisk(R_constant, t)));
     
     v_total_cantilever(i) = v_drag_cantilever(i) + v_shear_cantilever(i) + v_moment_cantilever(i);
 end;
 
 tetha_drag_cantilever = -max(drag) * L.^3 / (24 * E * Idisk(R_constant, t));
-tetha_shear_cantilever = -sum(x_forces(find(y_location_forces==L))) * L.^2 / (8*E*Idisk(R_constant, t));
+tetha_shear_cantilever = -sum(x_forces(find(z_location_forces==L))) * L.^2 / (8*E*Idisk(R_constant, t));
 tetha_moment_cantilever = M_deflection_cantilever * L / (2 * E * Idisk(R_constant, t));
 
 function drag = drag_calc (v, A, rho, cd)
